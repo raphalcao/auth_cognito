@@ -4,7 +4,7 @@ namespace App;
 
 use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
 use Aws\Exception\AwsException;
-use Illuminate\Http\Response;
+use Illuminate\Http\{Response};
 use Illuminate\Support\Facades\Log;
 
 class AWSCognito
@@ -58,22 +58,46 @@ class AWSCognito
         }
     }
 
-    public function login($email, $password)
+    public function login($dto)
     {
         try {
             $result = $this->client->initiateAuth([
                 'AuthFlow' => 'USER_PASSWORD_AUTH',
                 'ClientId' => $this->clientId,
                 'AuthParameters' => [
-                    'USERNAME' => $email,
-                    'PASSWORD' => $password,
-                    'SECRET_HASH' => $this->calculateSecretHash($email)
+                    'USERNAME' => $dto->email,
+                    'PASSWORD' => $dto->password,
+                    'SECRET_HASH' => $this->calculateSecretHash($dto->email)
                 ],
             ]);
-            return $result;
+
+            $success =  response()->json(
+                [
+                    'success' => true,
+                    'data' => [
+                        'type' => 'Authorized',
+                        'message' => $result
+                    ]
+                ],
+                Response::HTTP_OK
+            );
+            return $success->getData(true);
         } catch (AwsException $e) {
             Log::error($e->getMessage());
-            return false;
+            $error =  response()->json(['success' => false]);
+            if ($e->getStatusCode() == Response::HTTP_BAD_REQUEST) {
+                $error =  response()->json(
+                    [
+                        'success' => false,
+                        'data' => [
+                            'type' => 'NotAuthorizedException',
+                            'message' => 'Incorrect username or password.'
+                        ]
+                    ],
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+            return $error->getData(true);
         }
     }
 

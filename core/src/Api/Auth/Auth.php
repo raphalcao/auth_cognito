@@ -2,12 +2,12 @@
 
 namespace TechChallenge\Api\Auth;
 
+use TechChallenge\Application\DTO\Auth\AuthInput;
 use TechChallenge\Api\Controller;
 use Illuminate\Http\{
     Response,
     Request
 };
-
 use App\AWSCognito;
 use Aws\Exception\AwsException;
 use Exception;
@@ -70,21 +70,25 @@ class Auth extends Controller
     public function login(Request $request)
     {
         try {
-            $validatedData = $request->validate([
+
+            $request->validate([
                 'email' => 'required|string|email|max:255',
                 'password' => 'required|string|min:8',
             ]);
+            
+            $dto = new AuthInput($request->name, $request->email, $request->password);
+          
+            $result = $this->cognito->login($dto);
 
-            $result = $this->cognito->login($validatedData['email'], $validatedData['password']);
-
-            if ($result) {
+            if (isset($result['success']) && $result['success'] == true) {
                 return response()->json([
                     'token' => $result['AuthenticationResult']['AccessToken']
                 ], Response::HTTP_OK);
             }
 
             return response()->json([
-                'error' => 'Login failed'
+                'type' => $result["data"]['type'],
+                'error' => $result["data"]['message'],
             ], Response::HTTP_UNAUTHORIZED);
         } catch (AwsException $e) {
             return response()->json([
