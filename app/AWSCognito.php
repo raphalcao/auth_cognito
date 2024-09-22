@@ -32,29 +32,55 @@ class AWSCognito
         ]);
     }
 
-    public function register($email, $password, $name)
+    public function register($dto)
     {
         try {
             $result = $this->client->signUp([
                 'ClientId' => $this->clientId,
-                'SecretHash' => $this->calculateSecretHash($email),
-                'Username' => $email,
-                'Password' => $password,
+                'SecretHash' => $this->calculateSecretHash($dto->email),
+                'Username' => $dto->email,
+                'Password' => $dto->password,
                 'UserAttributes' => [
                     [
                         'Name' => 'email',
-                        'Value' => $email
+                        'Value' => $dto->email
                     ],
                     [
                         'Name' => 'name',
-                        'Value' => $name
+                        'Value' => $dto->name
                     ]
                 ],
             ]);
-            return $result;
+
+            $access = [];
+            foreach ($result as $data => $value) {
+                $access[$data] = $value;
+            }
+
+            $success = [
+                'success' => true,
+                'data' => [
+                    'type' => 'Authorized',
+                    'message' => $access
+                ]
+            ];
+            return $success;
         } catch (AwsException $e) {
             Log::error($e->getMessage());
-            return false;
+            $error =  response()->json(['success' => false]);
+            if ($e->getStatusCode() == Response::HTTP_BAD_REQUEST) {
+                $error =  response()->json(
+                    [
+                        'success' => false,
+                        'data' => [
+                            'type' => 'NotAuthorizedException',
+                            'message' => 'SignUp is not permitted for this user pool.'
+                        ]
+                    ],
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+            return $error->getData(true);
         }
     }
 
@@ -71,17 +97,19 @@ class AWSCognito
                 ],
             ]);
 
-            $success =  response()->json(
-                [
-                    'success' => true,
-                    'data' => [
-                        'type' => 'Authorized',
-                        'message' => $result
-                    ]
-                ],
-                Response::HTTP_OK
-            );
-            return $success->getData(true);
+            $access = [];
+            foreach ($result as $data => $value) {
+                $access[$data] = $value;
+            }
+
+            $success = [
+                'success' => true,
+                'data' => [
+                    'type' => 'Authorized',
+                    'message' => $access
+                ]
+            ];
+            return $success;
         } catch (AwsException $e) {
             Log::error($e->getMessage());
             $error =  response()->json(['success' => false]);
