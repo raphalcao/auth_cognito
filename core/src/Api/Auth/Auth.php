@@ -74,6 +74,31 @@ class Auth extends Controller
         }
     }
 
+    public function logout(Request $request)
+    {
+        try {
+
+            $this->validateRequest($request);
+
+            $dto = new AuthInput($request->name, $request->email, $request->password, $_SERVER['HTTP_AUTHORIZATION']);
+
+            $result = $this->cognito->logout($dto);
+
+            $statusCode = $result['status'] ?? Response::HTTP_BAD_REQUEST;
+
+            $responseKey = ($statusCode === Response::HTTP_OK) ? 'success' : 'error';
+
+            return response()->json([
+                'type' => $result["data"]['type'] ?? 'unknown',
+                $responseKey => $result["data"]['message'] ?? 'No message available',
+            ], $statusCode);
+        } catch (AwsException $e) {
+            return $this->handleAwsException($e);
+        } catch (Exception $e) {
+            return $this->handleGenericException($e);
+        }
+    }
+
     private function handleAwsException(AwsException $e)
     {
         return response()->json([

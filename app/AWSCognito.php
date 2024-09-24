@@ -3,6 +3,7 @@
 namespace App;
 
 use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
+use Illuminate\Support\Facades\Auth;
 use Aws\Exception\AwsException;
 use Illuminate\Http\{Response};
 use Illuminate\Support\Facades\Log;
@@ -127,6 +128,53 @@ class AWSCognito
             }
             return $error->getData(true);
         }
+    }
+
+    /**
+     * Logout do usuário e revoga o token.
+     */
+    public function logout($dto)
+    {
+        try {
+            $result =  $this->client->globalSignOut([
+                'AccessToken' => $dto->token,
+            ]);
+
+            $access = [];
+            foreach ($result as $data => $value) {
+                $access[$data] = $value;
+            }
+            Auth::logout();
+
+            if ($access['@metadata']['statusCode'] == Response::HTTP_OK) {
+                $success = [
+                    'success' => true,
+                    'data' => [
+                        'type' => 'User successfully logged out.',
+                        'message' => $access
+                    ],
+                    'status' => Response::HTTP_OK
+                ];
+            }
+            return $success;
+        } catch (AwsException $e) {
+            Log::error($e->getMessage());
+            $error =  response()->json(['success' => false]);
+            if ($e->getStatusCode() == Response::HTTP_BAD_REQUEST) {
+                $error =  response()->json(
+                    [
+                        'success' => false,
+                        'data' => [
+                            'type' => 'NotAuthorizedException',
+                            'message' => 'Access Token has been revoked.'
+                        ]
+                    ],
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+            return $error->getData(true);
+        }
+        return response()->json(['error' => 'Usuário não autenticado ou token não encontrado'], 401);
     }
 
     private function calculateSecretHash($username)
